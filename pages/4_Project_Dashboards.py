@@ -3,7 +3,7 @@ Page 4: Project Dashboards
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import gdown
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -25,12 +25,21 @@ dash_bar(
     c["success"]
 )
 
+
 @st.cache_data
 def load_sample():
+
     if not os.path.exists(DATA_PATH):
-        return None
+        os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+
+        gdown.download(
+            id="1JyuT3FocnybqJc2z9feED2gFtxU1WNC9",
+            output=DATA_PATH,
+            quiet=False
+        )
+
     df = pd.read_csv(DATA_PATH, nrows=10000)
-    df["Churn Status"]      = df["is_churn"].map({0: "Retained", 1: "Churned"})
+    df["Churn Status"] = df["is_churn"].map({0: "Retained", 1: "Churned"})
     df["Auto Renew Status"] = df["latest_auto_renew"].map({0: "Disabled", 1: "Enabled"})
     return df
 
