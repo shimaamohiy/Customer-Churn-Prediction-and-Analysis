@@ -9,6 +9,7 @@ import sys
 import joblib
 import pandas as pd
 import numpy as np
+import gdown
 from datetime import datetime
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.metrics import (
@@ -33,15 +34,27 @@ except ImportError:
 # ============================================================
 def load_data(filepath=None):
     """Load the final modeling dataset."""
+
     if filepath is None:
         filepath = os.path.join(PROCESSED_DATA_DIR, "final_modeling_dataset.csv")
 
+   
+    if not os.path.exists(filepath):
+        os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
+
+        gdown.download(
+            id="1JyuT3FocnybqJc2z9feED2gFtxU1WNC9",
+            output=filepath,
+            quiet=False
+        )
+
     print(f"Loading data from: {filepath}")
     df = pd.read_csv(filepath)
+
     print(f"Dataset shape: {df.shape}")
     print(f"Churn rate: {df['is_churn'].mean() * 100:.2f}%")
-    return df
 
+    return df
 
 # ============================================================
 # STEP 2: FEATURE PREPARATION (same as Phase 4 notebook)
