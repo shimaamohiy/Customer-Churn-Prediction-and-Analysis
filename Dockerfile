@@ -12,12 +12,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
-COPY .streamlit/ ./.streamlit/
+COPY theme.py .
+COPY app.py .
 COPY src/ ./src/
 COPY models/ ./models/
 COPY data/processed/ ./data/processed/
 COPY pages/ ./pages/
-COPY app.py .
 
 # Create required directories
 RUN mkdir -p data/predictions

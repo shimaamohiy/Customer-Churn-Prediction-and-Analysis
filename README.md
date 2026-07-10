@@ -39,6 +39,7 @@ Retaining an existing customer is vastly cheaper than acquiring a new one. This 
 ```text
 customer_churn_prediction/
 ├── app.py                      # Main Streamlit Application (Home)
+├── theme.py                    # CSS styling and Native Light/Dark engine config
 ├── pages/                      # Multi-page interactive modules
 │   ├── 1_Single_Prediction.py  # Real-time risk gauge & business insights
 │   ├── 2_Batch_Prediction.py   # Bulk CSV processing
@@ -50,9 +51,7 @@ customer_churn_prediction/
 │   └── config.py               # Global ML paths and parameters
 ├── Notebook/                   # CRISP-DM Jupyter Notebooks (Phases 1-6)
 ├── Dockerfile                  # Containerization setup for Streamlit
-├── requirements.txt            # Python dependencies
-└── .streamlit/
-    └── config.toml             # Theme configuration
+└── requirements.txt            # Python dependencies
 ```
 
 ---
