@@ -47,7 +47,9 @@ customer_churn_prediction/
 │   ├── 4_Project_Dashboards.py # Interactive EDA & Correlation Heatmaps
 │   └── 5_Model_Comparison.py   # Model evaluation dashboard
 ├── src/
-│   ├── pipeline.py             # Data preparation & model training logic
+│   ├── preprocess.py           # Data cleaning, feature engineering & preprocess_single_record()
+│   ├── pipeline.py             # Model training, evaluation & saving logic
+│   ├── predict.py              # Lightweight prediction helper (dict → prediction)
 │   └── config.py               # Global ML paths and parameters
 ├── Notebook/                   # CRISP-DM Jupyter Notebooks (Phases 1-6)
 ├── Dockerfile                  # Containerization setup for Streamlit
@@ -61,7 +63,8 @@ Below are the core features engineered from the raw user logs and transactions:
 - `total_secs`: Total seconds of music listened per day. (High = Better retention).
 - `is_auto_renew`: Whether the subscription renews automatically.
 - `num_100`: Number of songs played to 100% completion.
-- `skip_ratio`: Calculated ratio of songs skipped before 25% duration.
+- `skip_ratio`: Ratio of songs skipped early — computed as `(num_25 + num_50) / (num_25 + num_50 + num_75 + num_985 + num_100 + ε)`. High value indicates content dissatisfaction.
+- `loop_ratio`: Ratio of songs replayed — computed as `num_100 / (num_unq + ε)`. High value indicates deep engagement with favourites.
 - `days_since_last_transaction`: Days elapsed since the user last paid for a subscription. (High = Extremely high churn risk).
 
 ---
@@ -99,7 +102,7 @@ Navigate to `http://localhost:8501` in your browser.
 This project rigorously followed the CRISP-DM methodology:
 1. **Business Understanding:** Aligning metrics with revenue retention (Recall > Accuracy).
 2. **Data Understanding:** Processing 30GB+ of raw logs.
-3. **Data Preparation:** Feature engineering, temporal splits, and median imputation.
+3. **Data Preparation:** Feature engineering via `src/preprocess.py` — cleaning age & gender, computing date deltas, deriving `skip_ratio`, `loop_ratio`, and `account_age_days`. The same `preprocess_single_record()` function powers the live Single Prediction page.
 4. **Modeling:** Training Logistic Regression, Random Forest, Gradient Boosting, and LightGBM.
 5. **Evaluation:** Tuning LightGBM with `is_unbalance=True` to drastically maximize Recall.
 6. **Deployment:** The dynamic Streamlit dashboard.

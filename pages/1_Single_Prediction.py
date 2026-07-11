@@ -1,5 +1,6 @@
 """
 Page 1: Single Subscriber Prediction
+Accepts RAW features → Cleaning → Feature Engineering → Prediction
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -7,8 +8,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 import joblib
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
+from datetime import date
 from theme import init_theme, get_theme, inject_global_css, render_theme_toggle, dash_bar, section_header, insight_card
+from src.preprocess import preprocess_single_record
 
 st.set_page_config(page_title="Single Prediction", layout="wide")
 
@@ -28,7 +32,7 @@ def load_model():
 
 dash_bar(
     "Dynamic Churn Assessment & Insights",
-    "Adjust inputs — the risk gauge and business insights update in real-time.",
+    "Enter raw subscriber data — the system cleans, engineers features, and predicts churn in real-time.",
     c["primary"]
 )
 
@@ -37,82 +41,98 @@ if model is None:
     st.error("Model not found. Please run the training pipeline first.")
     st.stop()
 
+# ─── RAW INPUT FIELDS ─────────────────────────────────────────
 col1, col2, col3 = st.columns(3)
 
 with col1:
     section_header("Demographics & Account", c["teal"])
-    bd                   = st.slider("Age",                     10, 80,  30)
-    city                 = st.number_input("City ID",           1,  22,  1)
-    gender               = st.selectbox("Gender",               ["Male","Female","Unknown"])
-    registered_via       = st.selectbox("Registration Method",  [3, 4, 7, 9, 13], index=2)
-    account_age_days     = st.number_input("Account Age (Days)",1,  None, 365)
-    reg_year             = st.number_input("Registration Year",  2000, 2030, 2015)
-    reg_month            = st.number_input("Registration Month", 1, 12, 1)
-    reg_day              = st.number_input("Registration Day",   1, 31, 1)
+    bd_raw           = st.number_input("Age (Raw)", min_value=0, max_value=150, value=30,
+                                       help="Any integer — invalid values (outside 10-80) will be cleaned automatically.")
+    city             = st.number_input("City ID", min_value=1, max_value=22, value=1)
+    gender_raw       = st.selectbox("Gender", ["male", "female", "unknown"],
+                                    help="Will be one-hot encoded during preprocessing.")
+    registered_via   = st.selectbox("Registration Method", [3, 4, 7, 9, 13], index=2)
+    registration_date = st.date_input("Registration Date", value=date(2015, 1, 1),
+                                       help="reg_year, reg_month, reg_day and account_age_days will be derived automatically.")
 
 with col2:
     section_header("Transaction History", c["warning"])
     total_transactions          = st.slider("Total Transactions",        1, 50, 12)
-    total_actual_paid           = st.number_input("Total Actual Paid",   0, None, 1500)
-    mean_actual_paid            = st.number_input("Mean Actual Paid",    0.0, None, 149.0)
-    mean_plan_days              = st.number_input("Mean Plan Days",       0.0, None, 30.0)
-    average_under_overpayment   = st.number_input("Avg Under/Overpayment", value=0.0,
-                                                   help="Negative = underpayment / card decline")
+    total_actual_paid           = st.number_input("Total Actual Paid",   min_value=0, value=1500)
+    mean_actual_paid            = st.number_input("Mean Actual Paid",    min_value=0.0, value=149.0)
+    mean_plan_days              = st.number_input("Mean Plan Days",       min_value=0.0, value=30.0)
+    plan_list_price_mean        = st.number_input("Mean Plan List Price", min_value=0.0, value=149.0,
+                                                   help="Used to compute average under/overpayment = mean_actual_paid − mean_plan_list_price.")
     total_cancellations         = st.slider("Total Cancellations",       0, 10, 0)
     latest_auto_renew           = st.selectbox("Latest Auto Renew",      [0, 1], index=1)
-    latest_payment_method       = st.number_input("Payment Method ID",   1, 41, 41)
-    days_since_last_transaction = st.slider("Days Since Last Transaction", 0, 365, 15)
-    days_until_expiration       = st.slider("Days Until Expiration",    -30, 365, 15)
+    latest_payment_method       = st.number_input("Payment Method ID",   min_value=1, max_value=41, value=41)
+    last_transaction_date       = st.date_input("Last Transaction Date", value=date(2017, 4, 15),
+                                                 help="days_since_last_transaction will be computed from snapshot date 2017-04-30.")
+    membership_expire_date      = st.date_input("Membership Expire Date", value=date(2017, 5, 15),
+                                                 help="days_until_expiration will be computed from snapshot date 2017-04-30.")
 
 with col3:
     section_header("Platform Engagement", c["success"])
     total_active_days  = st.slider("Active Days (Last 30)",   0, 30, 20)
-    total_secs         = st.number_input("Total Seconds Played", 0.0, None, 50000.0)
-    num_100            = st.number_input("Songs Played 100%",    0.0, None, 200.0)
-    num_unq            = st.number_input("Unique Songs Played",  0.0, None, 150.0)
-    skip_ratio         = st.slider("Skip Ratio",  0.0, 1.0, 0.1)
-    loop_ratio         = st.slider("Loop Ratio",  0.0, 1.0, 0.05)
-    secs_per_active_day = st.number_input("Seconds/Active Day", 0.0, None, 2500.0)
+    total_secs         = st.number_input("Total Seconds Played", min_value=0.0, value=50000.0)
+    num_25             = st.number_input("Songs Played 25%  (num_25)",  min_value=0.0, value=50.0,
+                                         help="عدد الأغاني اللي اتسمعت 25% منها فأقل — بتدخل في حساب skip_ratio")
+    num_50             = st.number_input("Songs Played 50%  (num_50)",  min_value=0.0, value=30.0,
+                                         help="عدد الأغاني اللي اتسمعت 50% منها — بتدخل في حساب skip_ratio")
+    num_75             = st.number_input("Songs Played 75%  (num_75)",  min_value=0.0, value=20.0,
+                                         help="عدد الأغاني اللي اتسمعت 75% منها")
+    num_985            = st.number_input("Songs Played 98.5% (num_985)", min_value=0.0, value=10.0,
+                                         help="عدد الأغاني اللي اتسمعت 98.5% منها")
+    num_100            = st.number_input("Songs Played 100% (num_100)", min_value=0.0, value=200.0,
+                                         help="عدد الأغاني اللي اتسمعت كاملة — بتدخل في حساب loop_ratio")
+    num_unq            = st.number_input("Unique Songs Played (num_unq)", min_value=0.0, value=150.0,
+                                         help="عدد الأغاني الفريدة — بتدخل في حساب loop_ratio")
+    secs_per_active_day = st.number_input("Seconds/Active Day", min_value=0.0, value=2500.0)
 
-# ─── Build Feature Vector ─────────────────────────────────
-gender_male    = 1 if gender == "Male"    else 0
-gender_unknown = 1 if gender == "Unknown" else 0
 
-features = pd.DataFrame([{
-    'total_transactions': float(total_transactions),
-    'total_actual_paid': float(total_actual_paid),
-    'mean_actual_paid': float(mean_actual_paid),
-    'mean_plan_days': float(mean_plan_days),
-    'total_cancellations': float(total_cancellations),
-    'latest_auto_renew': float(latest_auto_renew),
-    'latest_payment_method': float(latest_payment_method),
-    'average_under_overpayment': float(average_under_overpayment),
-    'city': float(city),
-    'bd': float(bd),
-    'registered_via': float(registered_via),
-    'reg_year': float(reg_year),
-    'reg_month': float(reg_month),
-    'reg_day': float(reg_day),
-    'account_age_days': float(account_age_days),
-    'num_100': float(num_100),
-    'num_unq': float(num_unq),
-    'total_secs': float(total_secs),
-    'total_active_days': float(total_active_days),
-    'skip_ratio': float(skip_ratio),
-    'loop_ratio': float(loop_ratio),
-    'secs_per_active_day': float(secs_per_active_day),
-    'days_since_last_transaction': float(days_since_last_transaction),
-    'days_until_expiration': float(days_until_expiration),
-    'gender_male': float(gender_male),
-    'gender_unknown': float(gender_unknown),
-}])[[ 
-    'total_transactions','total_actual_paid','mean_actual_paid','mean_plan_days',
-    'total_cancellations','latest_auto_renew','latest_payment_method',
-    'average_under_overpayment','city','bd','registered_via','reg_year',
-    'reg_month','reg_day','account_age_days','num_100','num_unq','total_secs',
-    'total_active_days','skip_ratio','loop_ratio','secs_per_active_day',
-    'days_since_last_transaction','days_until_expiration','gender_male','gender_unknown'
-]]
+# ─── CLEANING & FEATURE ENGINEERING (via preprocess.py) ───────
+features, meta = preprocess_single_record(
+    bd_raw=bd_raw,
+    city=city,
+    gender_raw=gender_raw,
+    registered_via=registered_via,
+    registration_date=registration_date,
+    total_transactions=total_transactions,
+    total_actual_paid=total_actual_paid,
+    mean_actual_paid=mean_actual_paid,
+    mean_plan_days=mean_plan_days,
+    plan_list_price_mean=plan_list_price_mean,
+    total_cancellations=total_cancellations,
+    latest_auto_renew=latest_auto_renew,
+    latest_payment_method=latest_payment_method,
+    last_transaction_date=last_transaction_date,
+    membership_expire_date=membership_expire_date,
+    total_active_days=total_active_days,
+    total_secs=total_secs,
+    num_25=num_25,
+    num_50=num_50,
+    num_75=num_75,
+    num_985=num_985,
+    num_100=num_100,
+    num_unq=num_unq,
+    secs_per_active_day=secs_per_active_day,
+)
+
+# Unpack meta for use in insight cards below
+bd_clean                    = meta['bd_clean']
+age_was_cleaned             = meta['age_was_cleaned']
+skip_ratio                  = meta['skip_ratio']
+loop_ratio                  = meta['loop_ratio']
+account_age_days            = meta['account_age_days']
+days_since_last_transaction = meta['days_since_last_transaction']
+days_until_expiration       = meta['days_until_expiration']
+average_under_overpayment   = meta['average_under_overpayment']
+
+# ─── Preview engineered features ──────────────────────────────
+with st.expander(" Preview: Engineered Features After Cleaning & Preprocessing"):
+    display_df = features.T.rename(columns={0: "Value"})
+    display_df.index.name = "Feature"
+    st.dataframe(display_df, use_container_width=True)
 
 try:
     prediction  = model.predict(features)[0]
@@ -151,15 +171,15 @@ try:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # Summary verdict
         if prediction == 1:
             st.error(f"**Verdict: HIGH CHURN RISK** — Probability: {probability:.1%}")
         else:
             st.success(f"**Verdict: LIKELY RETAINED** — Probability: {probability:.1%}")
 
+       
     with i_col:
         section_header("Executive Summary & Actions", c["primary"])
-        
+
         if prediction == 1:
             insight_card(
                 " This Customer is Highly Likely to Churn",
@@ -174,7 +194,7 @@ try:
                 c["success"],
                 "No aggressive intervention needed. Continue standard marketing engagement."
             )
-        
+
         section_header("Detailed Risk Factors", c["warning"])
 
         if latest_auto_renew == 0:
@@ -235,9 +255,17 @@ try:
         if days_since_last_transaction > 30:
             insight_card(
                 "Critical: No Recent Transactions",
-                f"{days_since_last_transaction} days since last payment. Churn is almost certain without intervention.",
+                f"{days_since_last_transaction:.0f} days since last payment. Churn is almost certain without intervention.",
                 c["danger"],
                 "Move to Win-Back campaign immediately — standard retention marketing is too weak at this stage."
+            )
+
+        if age_was_cleaned:
+            insight_card(
+                "Data Quality: Invalid Age Detected",
+                f"Age value {bd_raw} is outside the valid range (10–80) and was automatically replaced with the training median ({bd_clean:.0f}).",
+                c["warning"],
+                "Ensure data collection captures accurate age values to improve prediction accuracy."
             )
 
 except Exception as e:

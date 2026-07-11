@@ -323,6 +323,201 @@ def prepare_for_model(df):
     return X, y, user_ids
 
 
+
+# ============================================================
+# SINGLE RECORD PREPROCESSING (for inference / Streamlit page)
+# ============================================================
+
+#: Snapshot date used across the entire project (matches notebook Phase 3)
+SNAPSHOT_DATE = pd.Timestamp("2017-04-30")
+
+#: Global age median from training data (used when bd is outside 10-80)
+GLOBAL_AGE_MEDIAN = 29.0
+
+#: Feature order expected by the trained model
+SINGLE_RECORD_FEATURE_ORDER = [
+    'total_transactions', 'total_actual_paid', 'mean_actual_paid', 'mean_plan_days',
+    'total_cancellations', 'latest_auto_renew', 'latest_payment_method',
+    'average_under_overpayment', 'city', 'bd', 'registered_via', 'reg_year',
+    'reg_month', 'reg_day', 'account_age_days', 'num_100', 'num_unq', 'total_secs',
+    'total_active_days', 'skip_ratio', 'loop_ratio', 'secs_per_active_day',
+    'days_since_last_transaction', 'days_until_expiration', 'gender_male', 'gender_unknown',
+]
+
+
+def preprocess_single_record(
+    bd_raw,
+    city,
+    gender_raw,
+    registered_via,
+    registration_date,
+    total_transactions,
+    total_actual_paid,
+    mean_actual_paid,
+    mean_plan_days,
+    plan_list_price_mean,
+    total_cancellations,
+    latest_auto_renew,
+    latest_payment_method,
+    last_transaction_date,
+    membership_expire_date,
+    total_active_days,
+    total_secs,
+    num_25,
+    num_50,
+    num_75,
+    num_985,
+    num_100,
+    num_unq,
+    secs_per_active_day,
+):
+    """
+    Clean and engineer features for a **single subscriber record**.
+
+    Replicates the exact notebook preprocessing pipeline:
+
+    Cleaning
+    --------
+    - bd (age): keep values in [10, 80]; otherwise replace with GLOBAL_AGE_MEDIAN.
+    - gender: normalise to lowercase; fill missing/unknown explicitly.
+
+    Feature Engineering
+    -------------------
+    - reg_year, reg_month, reg_day  ← extracted from registration_date
+    - account_age_days              ← SNAPSHOT_DATE − registration_date
+    - days_since_last_transaction   ← SNAPSHOT_DATE − last_transaction_date
+    - days_until_expiration         ← membership_expire_date − SNAPSHOT_DATE
+    - average_under_overpayment     ← mean_actual_paid − plan_list_price_mean
+    - gender_male, gender_unknown   ← one-hot encoding of gender_raw
+    - skip_ratio  = (num_25 + num_50) / (num_25+num_50+num_75+num_985+num_100 + 1e-5)
+    - loop_ratio  = num_100 / (num_unq + 1e-5)
+
+    Parameters
+    ----------
+    bd_raw : int or float
+        Raw age value from the user; any value outside [10, 80] will be cleaned.
+    city : int
+        City ID (1-22).
+    gender_raw : str
+        Raw gender string: 'male', 'female', or 'unknown'.
+    registered_via : int
+        Registration channel ID.
+    registration_date : date or str or pd.Timestamp
+        Date the user registered.
+    total_transactions : int or float
+    total_actual_paid : int or float
+    mean_actual_paid : float
+    mean_plan_days : float
+    plan_list_price_mean : float
+        Mean plan list price — used to derive average_under_overpayment.
+    total_cancellations : int or float
+    latest_auto_renew : int  (0 or 1)
+    latest_payment_method : int
+    last_transaction_date : date or str or pd.Timestamp
+    membership_expire_date : date or str or pd.Timestamp
+    total_active_days : int or float
+    total_secs : float
+    num_25 : float  — songs played up to 25 %
+    num_50 : float  — songs played up to 50 %
+    num_75 : float  — songs played up to 75 %
+    num_985 : float — songs played up to 98.5 %
+    num_100 : float — songs played 100 %
+    num_unq : float — unique songs played
+    secs_per_active_day : float
+
+    Returns
+    -------
+    features : pd.DataFrame
+        Single-row DataFrame with columns in SINGLE_RECORD_FEATURE_ORDER,
+        ready to be passed directly to model.predict().
+    meta : dict
+        Derived / cleaned values for display purposes, including:
+        'bd_clean', 'age_was_cleaned', 'skip_ratio', 'loop_ratio',
+        'account_age_days', 'days_since_last_transaction',
+        'days_until_expiration', 'average_under_overpayment'.
+    """
+
+    # ── 1. Clean age ─────────────────────────────────────────
+    if 10 <= float(bd_raw) <= 80:
+        bd_clean = float(bd_raw)
+        age_was_cleaned = False
+    else:
+        bd_clean = GLOBAL_AGE_MEDIAN
+        age_was_cleaned = True
+
+    # ── 2. Gender one-hot ─────────────────────────────────────
+    gender_norm    = str(gender_raw).strip().lower()
+    gender_male    = 1.0 if gender_norm == "male"    else 0.0
+    gender_unknown = 1.0 if gender_norm == "unknown" else 0.0
+
+    # ── 3. Registration date features ─────────────────────────
+    reg_dt           = pd.Timestamp(registration_date)
+    reg_year         = float(reg_dt.year)
+    reg_month        = float(reg_dt.month)
+    reg_day          = float(reg_dt.day)
+    account_age_days = float((SNAPSHOT_DATE - reg_dt).days)
+
+    # ── 4. Transaction date deltas ────────────────────────────
+    last_tx_dt                  = pd.Timestamp(last_transaction_date)
+    expire_dt                   = pd.Timestamp(membership_expire_date)
+    days_since_last_transaction = float((SNAPSHOT_DATE - last_tx_dt).days)
+    days_until_expiration       = float((expire_dt - SNAPSHOT_DATE).days)
+
+    # ── 5. Payment delta ──────────────────────────────────────
+    average_under_overpayment = float(mean_actual_paid) - float(plan_list_price_mean)
+
+    # ── 6. skip_ratio & loop_ratio (exact notebook DuckDB formulas) ──
+    total_plays = float(num_25) + float(num_50) + float(num_75) + float(num_985) + float(num_100)
+    skip_plays  = float(num_25) + float(num_50)
+    skip_ratio  = skip_plays  / (total_plays + 1e-5)
+    loop_ratio  = float(num_100) / (float(num_unq) + 1e-5)
+
+    # ── 7. Build model-ready DataFrame ────────────────────────
+    record = {
+        'total_transactions':           float(total_transactions),
+        'total_actual_paid':            float(total_actual_paid),
+        'mean_actual_paid':             float(mean_actual_paid),
+        'mean_plan_days':               float(mean_plan_days),
+        'total_cancellations':          float(total_cancellations),
+        'latest_auto_renew':            float(latest_auto_renew),
+        'latest_payment_method':        float(latest_payment_method),
+        'average_under_overpayment':    average_under_overpayment,
+        'city':                         float(city),
+        'bd':                           bd_clean,
+        'registered_via':               float(registered_via),
+        'reg_year':                     reg_year,
+        'reg_month':                    reg_month,
+        'reg_day':                      reg_day,
+        'account_age_days':             account_age_days,
+        'num_100':                      float(num_100),
+        'num_unq':                      float(num_unq),
+        'total_secs':                   float(total_secs),
+        'total_active_days':            float(total_active_days),
+        'skip_ratio':                   skip_ratio,
+        'loop_ratio':                   loop_ratio,
+        'secs_per_active_day':          float(secs_per_active_day),
+        'days_since_last_transaction':  days_since_last_transaction,
+        'days_until_expiration':        days_until_expiration,
+        'gender_male':                  gender_male,
+        'gender_unknown':               gender_unknown,
+    }
+
+    features = pd.DataFrame([record])[SINGLE_RECORD_FEATURE_ORDER]
+
+    meta = {
+        'bd_clean':                     bd_clean,
+        'age_was_cleaned':              age_was_cleaned,
+        'skip_ratio':                   skip_ratio,
+        'loop_ratio':                   loop_ratio,
+        'account_age_days':             account_age_days,
+        'days_since_last_transaction':  days_since_last_transaction,
+        'days_until_expiration':        days_until_expiration,
+        'average_under_overpayment':    average_under_overpayment,
+    }
+
+    return features, meta
+
+
 # ============================================================
 # ENTRY POINT
 # ============================================================
