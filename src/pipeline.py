@@ -36,14 +36,10 @@ def load_data(filepath=None):
     if filepath is None:
         filepath = os.path.join(PROCESSED_DATA_DIR, "final_modeling_dataset.csv")
 
-   
     if not os.path.exists(filepath):
-        os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
-
-        gdown.download(
-            id="1JyuT3FocnybqJc2z9feED2gFtxU1WNC9",
-            output=filepath,
-            quiet=False
+        raise FileNotFoundError(
+            f"Dataset not found at: {filepath}\n"
+            "Please place final_modeling_dataset.csv in data/processed/ before running the pipeline."
         )
 
     print(f"Loading data from: {filepath}")

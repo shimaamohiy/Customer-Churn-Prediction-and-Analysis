@@ -3,7 +3,6 @@ Page 4: Project Dashboards
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import gdown
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -17,28 +16,21 @@ inject_global_css(c)
 render_theme_toggle()
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_PATH = os.path.join(PROJECT_DIR, "data", "processed", "final_modeling_dataset.csv")
+DATA_PATH = os.path.join(PROJECT_DIR, "data", "processed", "dataset_sample.csv")
 
 dash_bar(
     "Global Data Insights & EDA",
-    "Interactive Plotly dashboards on a 10,000-row sample of the processed dataset.",
+    "Interactive Plotly dashboards on a 20,000-row representative sample of the processed dataset.",
     c["success"]
 )
 
 
 @st.cache_data
 def load_sample():
-
     if not os.path.exists(DATA_PATH):
-        os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-
-        gdown.download(
-            id="1JyuT3FocnybqJc2z9feED2gFtxU1WNC9",
-            output=DATA_PATH,
-            quiet=False
-        )
-
-    df = pd.read_csv(DATA_PATH, nrows=10000)
+        st.error("Sample data file not found. Please ensure dataset_sample.csv is in data/processed/.")
+        return None
+    df = pd.read_csv(DATA_PATH)
     df["Churn Status"] = df["is_churn"].map({0: "Retained", 1: "Churned"})
     df["Auto Renew Status"] = df["latest_auto_renew"].map({0: "Disabled", 1: "Enabled"})
     return df
