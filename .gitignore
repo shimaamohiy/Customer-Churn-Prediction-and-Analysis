@@ -1,6 +1,9 @@
-# Data and Models (Too large for GitHub)
+# Ignore all data
 data/raw/
-data/processed/
+data/processed/*
+
+# Except the sample dataset
+!data/processed/dataset_sample.csv
 
 
 # Byte-compiled / optimized / DLL files
