@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 import joblib
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 from datetime import date
 from theme import init_theme, get_theme, inject_global_css, render_theme_toggle, dash_bar, section_header, insight_card
@@ -176,7 +175,6 @@ try:
         else:
             st.success(f"**Verdict: LIKELY RETAINED** — Probability: {probability:.1%}")
 
-       
     with i_col:
         section_header("Executive Summary & Actions", c["primary"])
 

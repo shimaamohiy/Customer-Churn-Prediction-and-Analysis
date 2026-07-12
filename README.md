@@ -49,7 +49,6 @@ customer_churn_prediction/
 ├── src/
 │   ├── preprocess.py           # Data cleaning, feature engineering & preprocess_single_record()
 │   ├── pipeline.py             # Model training, evaluation & saving logic
-│   ├── predict.py              # Lightweight prediction helper (dict → prediction)
 │   └── config.py               # Global ML paths and parameters
 ├── Notebook/                   # CRISP-DM Jupyter Notebooks (Phases 1-6)
 ├── Dockerfile                  # Containerization setup for Streamlit

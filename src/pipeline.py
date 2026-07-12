@@ -8,8 +8,6 @@ import os
 import sys
 import joblib
 import pandas as pd
-import numpy as np
-import gdown
 from datetime import datetime
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.metrics import (
