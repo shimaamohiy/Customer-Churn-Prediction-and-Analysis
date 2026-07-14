@@ -46,7 +46,7 @@ def plotly_defaults():
     return dict(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 margin=dict(l=20,r=20,t=40,b=20))
 
-# ─── Row 1 ────────────────────────────────────────────────
+#  Row 1
 col1, col2 = st.columns(2)
 
 with col1:
@@ -72,27 +72,30 @@ with col1:
 
 with col2:
     section_header("2. Engagement vs. Retention", c["teal"])
-    st.markdown(f"<p style='color:{c['muted']};font-size:0.9rem;'>How many days was the user active in the last 30 days?</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:{c['muted']};font-size:0.9rem;'>How many days was the user active ?</p>", unsafe_allow_html=True)
     fig2 = px.box(df, x="Churn Status", y="total_active_days", color="Churn Status",
                   color_discrete_map=COLORS)
-    fig2.update_layout(**plotly_defaults(), yaxis_title="Active Days (Last 30)")
+    fig2.update_layout(**plotly_defaults(), yaxis_title="Active Days")
     st.plotly_chart(fig2, use_container_width=True)
     st.markdown(f"""
     <div style='background:{c['card']};border-left:4px solid {c['teal']};border:1px solid {c['border']};
-                padding:0.8rem 1rem;border-radius:8px;margin-bottom:0.4rem;font-size:0.9rem;color:{c['text']};'>
-        <b>Insight:</b> Retained users have a significantly higher median active days.
-        Churned users typically drop below 10 active days weeks before cancelling — this is detectable early.
-    </div>
-    <div style='background:rgba(16,185,129,0.1);border-left:4px solid {c['success']};border:1px solid {c['border']};
-                padding:0.8rem 1rem;border-radius:8px;font-size:0.9rem;color:{c['text']};'>
-        <b>Action:</b> Build an alert: when active days drop below 10 in any 30-day window → trigger 
-        personalized "Discover Weekly" push notifications to re-engage the user before they leave.
-    </div>
+            padding:0.8rem 1rem;border-radius:8px;margin-bottom:0.4rem;font-size:0.9rem;color:{c['text']};'>
+    <b>Insight:</b> Retained users generally accumulate more active days than churned users,
+    indicating stronger long-term engagement with the platform. Lower total active days are
+    associated with a higher likelihood of churn.
+</div>
+
+<div style='background:rgba(16,185,129,0.1);border-left:4px solid {c['success']};border:1px solid {c['border']};
+            padding:0.8rem 1rem;border-radius:8px;font-size:0.9rem;color:{c['text']};'>
+    <b>Action:</b> Continuously monitor users with declining total active days and launch
+    personalized engagement campaigns, such as music recommendations, exclusive playlists,
+    or promotional offers, to encourage regular platform usage and reduce churn risk.
+</div>
     """, unsafe_allow_html=True)
 
 st.divider()
 
-# ─── Row 2 ────────────────────────────────────────────────
+#  Row 2 
 col3, col4 = st.columns(2)
 
 with col3:
@@ -140,7 +143,7 @@ with col4:
 
 st.divider()
 
-# ─── Row 3 ────────────────────────────────────────────────
+#  Row 3 
 col5, col6 = st.columns(2)
 
 with col5:

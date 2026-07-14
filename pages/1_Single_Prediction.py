@@ -40,7 +40,7 @@ if model is None:
     st.error("Model not found. Please run the training pipeline first.")
     st.stop()
 
-# ─── RAW INPUT FIELDS ─────────────────────────────────────────
+#  RAW INPUT FIELDS
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -72,24 +72,19 @@ with col2:
 
 with col3:
     section_header("Platform Engagement", c["success"])
-    total_active_days  = st.slider("Active Days (Last 30)",   0, 30, 20)
+    total_active_days  = st.slider("Active Days ",   0, 500, 20)
     total_secs         = st.number_input("Total Seconds Played", min_value=0.0, value=50000.0)
     num_25             = st.number_input("Songs Played 25%  (num_25)",  min_value=0.0, value=50.0,
-                                         help="عدد الأغاني اللي اتسمعت 25% منها فأقل — بتدخل في حساب skip_ratio")
-    num_50             = st.number_input("Songs Played 50%  (num_50)",  min_value=0.0, value=30.0,
-                                         help="عدد الأغاني اللي اتسمعت 50% منها — بتدخل في حساب skip_ratio")
-    num_75             = st.number_input("Songs Played 75%  (num_75)",  min_value=0.0, value=20.0,
-                                         help="عدد الأغاني اللي اتسمعت 75% منها")
-    num_985            = st.number_input("Songs Played 98.5% (num_985)", min_value=0.0, value=10.0,
-                                         help="عدد الأغاني اللي اتسمعت 98.5% منها")
-    num_100            = st.number_input("Songs Played 100% (num_100)", min_value=0.0, value=200.0,
-                                         help="عدد الأغاني اللي اتسمعت كاملة — بتدخل في حساب loop_ratio")
-    num_unq            = st.number_input("Unique Songs Played (num_unq)", min_value=0.0, value=150.0,
-                                         help="عدد الأغاني الفريدة — بتدخل في حساب loop_ratio")
+                                         )
+    num_50             = st.number_input("Songs Played 50%  (num_50)",  min_value=0.0, value=30.0)
+    num_75             = st.number_input("Songs Played 75%  (num_75)",  min_value=0.0, value=20.0)
+    num_985            = st.number_input("Songs Played 98.5% (num_985)", min_value=0.0, value=10.0)
+    num_100            = st.number_input("Songs Played 100% (num_100)", min_value=0.0, value=200.0)
+    num_unq            = st.number_input("Unique Songs Played (num_unq)", min_value=0.0, value=150.0)
     secs_per_active_day = st.number_input("Seconds/Active Day", min_value=0.0, value=2500.0)
 
 
-# ─── CLEANING & FEATURE ENGINEERING (via preprocess.py) ───────
+#CLEANING & FEATURE ENGINEERING 
 features, meta = preprocess_single_record(
     bd_raw=bd_raw,
     city=city,
@@ -127,7 +122,7 @@ days_since_last_transaction = meta['days_since_last_transaction']
 days_until_expiration       = meta['days_until_expiration']
 average_under_overpayment   = meta['average_under_overpayment']
 
-# ─── Preview engineered features ──────────────────────────────
+# Preview engineered features 
 with st.expander(" Preview: Engineered Features After Cleaning & Preprocessing"):
     display_df = features.T.rename(columns={0: "Value"})
     display_df.index.name = "Feature"
